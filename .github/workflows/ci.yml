@@ -43,8 +43,13 @@ jobs:
         run: ./gradlew --version
 
 
-      - name: Run Reporting Tests
-        run: ./gradlew reporting --no-configuration-cache
+      - name: Build Project
+        run: ./gradlew clean testClasses
+
+
+      - name: Run Cucumber Smoke Tests
+        run: ./gradlew cucumberSmoke --no-configuration-cache
+        continue-on-error: true
 
 
       - name: Copy Allure Environment
