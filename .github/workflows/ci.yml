@@ -107,27 +107,79 @@ jobs:
           echo "MySQL did not start"
           exit 1
 
+      - name: Find Database Schema
+        run: |
+          echo "Searching for SQL files..."
+
+          find src -type f -name "*.sql" -print
+
 
       - name: Create ShopKart Database Schema
         run: |
+          SCHEMA_FILE=$(find src/test/resources -type f -name "V1__schema.sql" | head -n 1)
+
+          if [ -z "$SCHEMA_FILE" ]; then
+            echo "ERROR: V1__schema.sql was not found"
+            find src/test/resources -type f -print
+            exit 1
+          fi
+
+          echo "Using schema file: $SCHEMA_FILE"
+
           mysql \
             -h 127.0.0.1 \
             -P 3306 \
             -u root \
             -proot \
             shopkart \
-            < src/test/resources/db/migration/V1__schema.sql
+            < "$SCHEMA_FILE"
 
 
-      - name: Verify Database
+      - name: Verify Database Tables
         run: |
+          echo "Checking ShopKart database..."
+
           mysql \
             -h 127.0.0.1 \
             -P 3306 \
             -u root \
             -proot \
             shopkart \
-            -e "SHOW TABLES; SELECT sku, name, stock FROM products;"
+            -e "SHOW TABLES;"
+
+
+      - name: Verify Product Data
+        run: |
+          PRODUCT_TABLE_EXISTS=$(mysql \
+            -h 127.0.0.1 \
+            -P 3306 \
+            -u root \
+            -proot \
+            shopkart \
+            -N \
+            -e "SHOW TABLES LIKE 'products';")
+
+          if [ "$PRODUCT_TABLE_EXISTS" != "products" ]; then
+            echo "ERROR: products table was not created"
+
+            mysql \
+              -h 127.0.0.1 \
+              -P 3306 \
+              -u root \
+              -proot \
+              shopkart \
+              -e "SHOW TABLES;"
+
+            exit 1
+          fi
+
+          mysql \
+            -h 127.0.0.1 \
+            -P 3306 \
+            -u root \
+            -proot \
+            shopkart \
+            -e "SELECT sku, name, stock FROM products;"
 
 
       - name: Compile Test Project
