@@ -187,6 +187,9 @@ dependencies {
     testImplementation(
         "io.qameta.allure:allure-rest-assured"
     )
+    testImplementation(
+        "io.qameta.allure:allure-selenide:2.35.1"
+    )
 
 
     // ========================================================
