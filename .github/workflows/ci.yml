@@ -1,4 +1,4 @@
-name: ShopKart Report
+name: ShopKart CI and Allure Report
 
 on:
   push:
@@ -9,13 +9,43 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
-  allure-report:
+  shopkart-tests:
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+
+    env:
+      CI: "true"
+      HEADLESS: "true"
+
+      SHOPKART_ALICE_PASSWORD: ${{ secrets.SHOPKART_ALICE_PASSWORD }}
+      SHOPKART_BOB_PASSWORD: ${{ secrets.SHOPKART_BOB_PASSWORD }}
+      SHOPKART_CAROL_PASSWORD: ${{ secrets.SHOPKART_CAROL_PASSWORD }}
+
+      DB_HOST: localhost
+      DB_PORT: 3306
+      DB_NAME: shopkart
+      DB_USER: root
+      DB_PASSWORD: root
+
+    services:
+
+      mysql:
+        image: mysql:8.0
+
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: shopkart
+
+        ports:
+          - 3306:3306
+
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
 
     steps:
 
@@ -41,83 +71,145 @@ jobs:
         run: chmod +x gradlew
 
 
-      - name: Check Gradle
-        run: ./gradlew --version
-
-
-      - name: Build Project
-        run: ./gradlew clean testClasses
-
-
-      - name: Install Chrome Browser
+      - name: Verify Java and Gradle
         run: |
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser chromium-chromedriver
+          java -version
+          ./gradlew --version
+
+
+      - name: Verify Chrome
+        run: |
+          google-chrome --version
+          chromedriver --version
+          which google-chrome
+          which chromedriver
+
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}; do
+            if mysqladmin ping \
+              -h 127.0.0.1 \
+              -P 3306 \
+              -u root \
+              -proot \
+              --silent; then
+
+              echo "MySQL is ready"
+              exit 0
+
+            fi
+
+            echo "Waiting for MySQL..."
+            sleep 2
+          done
+
+          echo "MySQL did not start"
+          exit 1
+
+
+      - name: Create ShopKart Database Schema
+        run: |
+          mysql \
+            -h 127.0.0.1 \
+            -P 3306 \
+            -u root \
+            -proot \
+            shopkart \
+            < src/test/resources/db/migration/V1__schema.sql
+
+
+      - name: Verify Database
+        run: |
+          mysql \
+            -h 127.0.0.1 \
+            -P 3306 \
+            -u root \
+            -proot \
+            shopkart \
+            -e "SHOW TABLES; SELECT sku, name, stock FROM products;"
+
+
+      - name: Compile Test Project
+        run: ./gradlew clean testClasses --no-configuration-cache
+
+
+      - name: Check ShopKart Backend
+        run: |
+          echo "Checking ShopKart application..."
+          curl --fail http://localhost:8080/ || {
+            echo "ShopKart backend is not running"
+            exit 1
+          }
 
 
       - name: Run Cucumber Smoke Tests
-        run: ./gradlew cucumberSmoke --no-configuration-cache
+        run: |
+          ./gradlew cucumberSmoke \
+            --no-configuration-cache \
+            -Dheadless=true \
+            -DbaseUrl=http://localhost:8080 \
+            -Ddb.host=localhost \
+            -Ddb.port=3306 \
+            -Ddb.name=shopkart \
+            -Ddb.user=root
+
         continue-on-error: true
-        env:
-          CI: "true"
-          HEADLESS: "true"
 
 
       - name: Copy Allure Environment
         if: always()
         run: |
           mkdir -p build/allure-results
-          
+
           if [ -f src/test/resources/environment.properties ]; then
-            cp src/test/resources/environment.properties \
-               build/allure-results/environment.properties
+
+            cp \
+              src/test/resources/environment.properties \
+              build/allure-results/environment.properties
+
           fi
 
 
-      - name: Verify Allure Results Exist
+      - name: Verify Allure Results
         if: always()
         run: |
-          ls -la build/allure-results/ || echo "No allure-results found"
-          find build/ -name "*.json" -type f || echo "No JSON files found"
+          echo "Allure result files:"
+
+          find build/allure-results \
+            -type f \
+            -maxdepth 2 \
+            -print || true
 
 
       - name: Install Allure
         if: always()
         run: |
-          sudo apt-get update
-          sudo apt-get install -y default-jre
           npm install -g allure-commandline
+
+          allure --version
 
 
       - name: Generate Allure Report
         if: always()
         run: |
-          mkdir -p allure-report
-          allure generate build/allure-results -o allure-report --clean || true
-          ls -la allure-report/ || echo "Report generation had issues"
+          allure generate \
+            build/allure-results \
+            -o allure-report \
+            --clean
 
 
-      - name: Create Dummy Index If Empty
+      - name: Verify Allure Report
         if: always()
         run: |
-          if [ ! -f allure-report/index.html ] || [ ! -s allure-report/index.html ]; then
-            mkdir -p allure-report
-            cat > allure-report/index.html << 'EOF'
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Allure Report</title>
-          </head>
-          <body>
-            <h1>Allure Test Report</h1>
-            <p>Report generation in progress...</p>
-          </body>
-          </html>
-          EOF
-          fi
+          test -f allure-report/index.html
+
+          echo "Allure report generated successfully"
+
+          ls -la allure-report/
 
 
-      - name: Deploy to GitHub Pages
+      - name: Deploy Allure Report to GitHub Pages
         if: always()
         uses: peaceiris/actions-gh-pages@v4
         with:
