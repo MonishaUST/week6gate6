@@ -1,4 +1,4 @@
-.\gradlew tasks --allname: ShopKart Report
+name: ShopKart Report
 
 on:
   push:
