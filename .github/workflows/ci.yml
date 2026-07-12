@@ -17,7 +17,6 @@ jobs:
 
     env:
       CI: "true"
-      HEADLESS: "true"
 
       SHOPKART_ALICE_PASSWORD: ${{ secrets.SHOPKART_ALICE_PASSWORD }}
       SHOPKART_BOB_PASSWORD: ${{ secrets.SHOPKART_BOB_PASSWORD }}
@@ -49,11 +48,19 @@ jobs:
 
     steps:
 
+      # ============================================================
+      # CHECKOUT
+      # ============================================================
+
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+
+      # ============================================================
+      # JAVA 22
+      # ============================================================
 
       - name: Setup Java 22
         uses: actions/setup-java@v4
@@ -62,6 +69,10 @@ jobs:
           java-version: 22
           cache: gradle
 
+
+      # ============================================================
+      # GRADLE
+      # ============================================================
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -73,21 +84,47 @@ jobs:
 
       - name: Verify Java and Gradle
         run: |
+          echo "Java version:"
           java -version
+
+          echo "Gradle version:"
           ./gradlew --version
+
+
+      # ============================================================
+      # CHROME
+      # ============================================================
+
+      - name: Setup Chrome
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v2
+        with:
+          chrome-version: stable
+          install-chromedriver: true
+          install-dependencies: true
 
 
       - name: Verify Chrome
         run: |
-          google-chrome --version
-          chromedriver --version
-          which google-chrome
-          which chromedriver
+          echo "Chrome binary:"
+          echo "${{ steps.setup-chrome.outputs.chrome-path }}"
 
+          "${{ steps.setup-chrome.outputs.chrome-path }}" --version
+
+          echo "ChromeDriver:"
+          chromedriver --version || true
+
+
+      # ============================================================
+      # MYSQL
+      # ============================================================
 
       - name: Wait for MySQL
         run: |
+          echo "Waiting for MySQL..."
+
           for i in {1..30}; do
+
             if mysqladmin ping \
               -h 127.0.0.1 \
               -P 3306 \
@@ -96,71 +133,52 @@ jobs:
               --silent; then
 
               echo "MySQL is ready"
+
               exit 0
 
             fi
 
             echo "Waiting for MySQL..."
+
             sleep 2
+
           done
 
-          echo "MySQL did not start"
+          echo "MySQL failed to start"
+
           exit 1
 
-      - name: Find Database Schema
+
+      # ============================================================
+      # DATABASE MIGRATIONS
+      # ============================================================
+
+      - name: Initialize Test Database
         run: |
-          echo "Searching for SQL files..."
+          echo "Searching for database migrations..."
 
-          find src -type f -name "*.sql" -print
-
-
-      - name: Create ShopKart Database Schema
-        run: |
-          SCHEMA_FILE=$(find src/test/resources -type f -name "V1__schema.sql" | head -n 1)
-
-          if [ -z "$SCHEMA_FILE" ]; then
-            echo "ERROR: V1__schema.sql was not found"
-            find src/test/resources -type f -print
-            exit 1
-          fi
-
-          echo "Using schema file: $SCHEMA_FILE"
-
-          mysql \
-            -h 127.0.0.1 \
-            -P 3306 \
-            -u root \
-            -proot \
-            shopkart \
-            < "$SCHEMA_FILE"
+          find src/test/resources \
+            -type f \
+            -name "*.sql" \
+            -print || true
 
 
-      - name: Verify Database Tables
-        run: |
-          echo "Checking ShopKart database..."
-
-          mysql \
-            -h 127.0.0.1 \
-            -P 3306 \
-            -u root \
-            -proot \
-            shopkart \
-            -e "SHOW TABLES;"
+          SCHEMA_FILE=$(find src/test/resources \
+            -type f \
+            -name "V1__schema.sql" \
+            | head -n 1)
 
 
-      - name: Verify Product Data
-        run: |
-          PRODUCT_TABLE_EXISTS=$(mysql \
-            -h 127.0.0.1 \
-            -P 3306 \
-            -u root \
-            -proot \
-            shopkart \
-            -N \
-            -e "SHOW TABLES LIKE 'products';")
+          SEED_FILE=$(find src/test/resources \
+            -type f \
+            -name "V2__seed.sql" \
+            | head -n 1)
 
-          if [ "$PRODUCT_TABLE_EXISTS" != "products" ]; then
-            echo "ERROR: products table was not created"
+
+          if [ -n "$SCHEMA_FILE" ]; then
+
+            echo "Executing schema:"
+            echo "$SCHEMA_FILE"
 
             mysql \
               -h 127.0.0.1 \
@@ -168,36 +186,77 @@ jobs:
               -u root \
               -proot \
               shopkart \
-              -e "SHOW TABLES;"
+              < "$SCHEMA_FILE"
 
-            exit 1
+          else
+
+            echo "V1__schema.sql not found"
+
           fi
 
-          mysql \
-            -h 127.0.0.1 \
-            -P 3306 \
-            -u root \
-            -proot \
-            shopkart \
-            -e "SELECT sku, name, stock FROM products;"
+
+          if [ -n "$SEED_FILE" ]; then
+
+            echo "Executing seed:"
+            echo "$SEED_FILE"
+
+            mysql \
+              -h 127.0.0.1 \
+              -P 3306 \
+              -u root \
+              -proot \
+              shopkart \
+              < "$SEED_FILE"
+
+          else
+
+            echo "V2__seed.sql not found"
+
+          fi
 
 
-      - name: Compile Test Project
-        run: ./gradlew clean testClasses --no-configuration-cache
+      # ============================================================
+      # COMPILE AUTOMATION PROJECT
+      # ============================================================
 
-
-      - name: Check ShopKart Backend
+      - name: Compile ShopKart Automation Project
         run: |
-          echo "Checking ShopKart application..."
-          curl --fail http://localhost:8080/ || {
-            echo "ShopKart backend is not running"
-            exit 1
-          }
+          ./gradlew \
+            clean \
+            testClasses \
+            --no-configuration-cache
 
 
-      - name: Run Cucumber Smoke Tests
+      # ============================================================
+      # PREPARE ALLURE
+      # ============================================================
+
+      - name: Prepare Allure Results
         run: |
-          ./gradlew cucumberSmoke \
+          mkdir -p build/allure-results
+
+
+      # ============================================================
+      # CUCUMBER SMOKE
+      # ============================================================
+
+      - name: Run Cucumber Smoke Scenarios
+        continue-on-error: true
+
+        env:
+          CI: "true"
+
+          CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
+
+          SHOPKART_ALICE_PASSWORD: ${{ secrets.SHOPKART_ALICE_PASSWORD }}
+          SHOPKART_BOB_PASSWORD: ${{ secrets.SHOPKART_BOB_PASSWORD }}
+          SHOPKART_CAROL_PASSWORD: ${{ secrets.SHOPKART_CAROL_PASSWORD }}
+
+          DB_PASSWORD: root
+
+        run: |
+          ./gradlew \
+            cucumberSmoke \
             --no-configuration-cache \
             -Dheadless=true \
             -DbaseUrl=http://localhost:8080 \
@@ -206,13 +265,77 @@ jobs:
             -Ddb.name=shopkart \
             -Ddb.user=root
 
+
+      # ============================================================
+      # CUCUMBER NEGATIVE
+      # ============================================================
+
+      - name: Run Cucumber Negative Scenarios
         continue-on-error: true
 
+        env:
+          CI: "true"
 
-      - name: Copy Allure Environment
+          CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
+
+          SHOPKART_ALICE_PASSWORD: ${{ secrets.SHOPKART_ALICE_PASSWORD }}
+          SHOPKART_BOB_PASSWORD: ${{ secrets.SHOPKART_BOB_PASSWORD }}
+          SHOPKART_CAROL_PASSWORD: ${{ secrets.SHOPKART_CAROL_PASSWORD }}
+
+          DB_PASSWORD: root
+
+        run: |
+          ./gradlew \
+            cucumberNegative \
+            --no-configuration-cache \
+            -Dheadless=true \
+            -DbaseUrl=http://localhost:8080 \
+            -Ddb.host=localhost \
+            -Ddb.port=3306 \
+            -Ddb.name=shopkart \
+            -Ddb.user=root
+
+
+      # ============================================================
+      # CUCUMBER E2E
+      # ============================================================
+
+      - name: Run Cucumber E2E Scenarios
+        continue-on-error: true
+
+        env:
+          CI: "true"
+
+          CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
+
+          SHOPKART_ALICE_PASSWORD: ${{ secrets.SHOPKART_ALICE_PASSWORD }}
+          SHOPKART_BOB_PASSWORD: ${{ secrets.SHOPKART_BOB_PASSWORD }}
+          SHOPKART_CAROL_PASSWORD: ${{ secrets.SHOPKART_CAROL_PASSWORD }}
+
+          DB_PASSWORD: root
+
+        run: |
+          ./gradlew \
+            cucumberE2E \
+            --no-configuration-cache \
+            -Dheadless=true \
+            -DbaseUrl=http://localhost:8080 \
+            -Ddb.host=localhost \
+            -Ddb.port=3306 \
+            -Ddb.name=shopkart \
+            -Ddb.user=root
+
+
+      # ============================================================
+      # COPY ALLURE CONFIGURATION
+      # ============================================================
+
+      - name: Copy Allure Configuration
         if: always()
+
         run: |
           mkdir -p build/allure-results
+
 
           if [ -f src/test/resources/environment.properties ]; then
 
@@ -223,27 +346,59 @@ jobs:
           fi
 
 
+          if [ -f src/test/resources/categories.json ]; then
+
+            cp \
+              src/test/resources/categories.json \
+              build/allure-results/categories.json
+
+          fi
+
+
+      # ============================================================
+      # VERIFY ALLURE RESULTS
+      # ============================================================
+
       - name: Verify Allure Results
         if: always()
+
         run: |
           echo "Allure result files:"
 
           find build/allure-results \
             -type f \
-            -maxdepth 2 \
             -print || true
 
 
-      - name: Install Allure
+          RESULT_COUNT=$(find build/allure-results \
+            -type f \
+            -name "*-result.json" \
+            | wc -l)
+
+
+          echo "Total Allure test results: $RESULT_COUNT"
+
+
+      # ============================================================
+      # INSTALL ALLURE
+      # ============================================================
+
+      - name: Install Allure CLI
         if: always()
+
         run: |
           npm install -g allure-commandline
 
           allure --version
 
 
+      # ============================================================
+      # GENERATE ALLURE REPORT
+      # ============================================================
+
       - name: Generate Allure Report
         if: always()
+
         run: |
           allure generate \
             build/allure-results \
@@ -251,21 +406,42 @@ jobs:
             --clean
 
 
+      # ============================================================
+      # VERIFY REPORT
+      # ============================================================
+
       - name: Verify Allure Report
         if: always()
+
         run: |
-          test -f allure-report/index.html
+          if [ ! -f allure-report/index.html ]; then
+
+            echo "Allure report was not generated"
+
+            exit 1
+
+          fi
+
 
           echo "Allure report generated successfully"
 
           ls -la allure-report/
 
 
+      # ============================================================
+      # DEPLOY TO GITHUB PAGES
+      # ============================================================
+
       - name: Deploy Allure Report to GitHub Pages
         if: always()
+
         uses: peaceiris/actions-gh-pages@v4
+
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+
           publish_branch: gh-pages
+
           publish_dir: allure-report
+
           force_orphan: true

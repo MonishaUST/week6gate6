@@ -1,31 +1,50 @@
 [
   {
     "name": "Assertion Failures",
-    "matchedStatuses": ["failed"],
-    "messageRegex": ".*AssertionFailedError.*"
+    "matchedStatuses": [
+      "failed"
+    ],
+    "messageRegex": ".*(AssertionFailedError|AssertionError).*"
   },
   {
     "name": "UI Automation Issues",
-    "matchedStatuses": ["broken"],
-    "messageRegex": ".*(NoSuchElementException|StaleElementReferenceException|TimeoutException).*"
+    "matchedStatuses": [
+      "broken"
+    ],
+    "messageRegex": ".*(NoSuchElementException|StaleElementReferenceException|TimeoutException|ElementNotFound).*"
+  },
+  {
+    "name": "Browser Infrastructure Issues",
+    "matchedStatuses": [
+      "broken"
+    ],
+    "messageRegex": ".*(WebDriverException|SessionNotCreatedException|session not created|chrome binary|Chrome instance exited).*"
   },
   {
     "name": "Database Issues",
-    "matchedStatuses": ["broken"],
-    "messageRegex": ".*(SQLException|PSQLException|Flyway).*"
+    "matchedStatuses": [
+      "broken"
+    ],
+    "messageRegex": ".*(SQLException|PSQLException|SQLSyntaxErrorException|Flyway).*"
   },
   {
     "name": "Configuration Issues",
-    "matchedStatuses": ["broken"],
-    "messageRegex": ".*(IllegalStateException|IllegalArgumentException).*"
+    "matchedStatuses": [
+      "broken"
+    ],
+    "messageRegex": ".*(IllegalStateException|IllegalArgumentException|Missing required secret).*"
   },
   {
     "name": "Infrastructure Issues",
-    "matchedStatuses": ["broken"],
-    "messageRegex": ".*(ContainerLaunchException|Docker|connection refused|connection reset).*"
+    "matchedStatuses": [
+      "broken"
+    ],
+    "messageRegex": ".*(ContainerLaunchException|Docker|ConnectException|connection refused|Connection refused|connection reset).*"
   },
   {
-    "name": "Other Failures",
-    "matchedStatuses": ["broken"]
+    "name": "Other Broken Tests",
+    "matchedStatuses": [
+      "broken"
+    ]
   }
 ]
