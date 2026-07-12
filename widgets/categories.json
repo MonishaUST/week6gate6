@@ -1,0 +1,1 @@
+{"total":2,"items":[{"uid":"8af25cb3123ea904253b2a5a81e1d441","name":"Configuration Issues","statistic":{"failed":0,"broken":4,"skipped":0,"passed":0,"unknown":0,"total":4}},{"uid":"905533a3acb02e87bbb7b69eea3dcccf","name":"Other Broken Tests","statistic":{"failed":0,"broken":2,"skipped":0,"passed":0,"unknown":0,"total":2}}]}

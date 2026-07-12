@@ -1,0 +1,7 @@
+"BROKEN","EPIC","FAILED","FEATURE","PASSED","SKIPPED","STORY","UNKNOWN"
+"1","","0","Product search is consistent between UI and API","0","0","Searching for bag returns Metro Carryall","0"
+"1","","0","Cancelled orders cannot be cancelled again","0","0","Customer cancels the same order twice","0"
+"1","","0","Checkout places an order and the backend agrees","0","0","A logged-in customer checks out a two-item cart","0"
+"1","","0","Out-of-stock products cannot be added to a cart","0","0","Customer tries to add an out-of-stock cap","0"
+"1","","0","Orders are visible only to their owner","0","0","Another customer cannot read someone else's order","0"
+"1","","0","Cart totals are correct","0","0","Two bags have a total of 99800 paise","0"

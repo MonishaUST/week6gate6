@@ -1,0 +1,1 @@
+[{"values":["ShopKart"],"name":"Application"},{"values":["Local"],"name":"Environment"},{"values":["Chrome"],"name":"Browser"},{"values":["http://localhost:8080"],"name":"BaseURL"},{"values":["http://localhost:8080/api"],"name":"API"},{"values":["MySQL"],"name":"Database"}]

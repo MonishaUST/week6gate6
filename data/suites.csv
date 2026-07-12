@@ -1,0 +1,7 @@
+"DESCRIPTION","DURATION IN MS","NAME","PARENT SUITE","START TIME","STATUS","STOP TIME","SUB SUITE","SUITE","TEST CLASS","TEST METHOD"
+"","605","Searching for bag returns Metro Carryall","","2026-07-12","broken","2026-07-12","","Product search is consistent between UI and API","Searching for bag returns Metro Carryall",""
+"","55","Customer cancels the same order twice","","2026-07-12","broken","2026-07-12","","Cancelled orders cannot be cancelled again","Customer cancels the same order twice",""
+"","1767","A logged-in customer checks out a two-item cart","","2026-07-12","broken","2026-07-12","","Checkout places an order and the backend agrees","A logged-in customer checks out a two-item cart",""
+"","5","Customer tries to add an out-of-stock cap","","2026-07-12","broken","2026-07-12","","Out-of-stock products cannot be added to a cart","Customer tries to add an out-of-stock cap",""
+"","5","Another customer cannot read someone else's order","","2026-07-12","broken","2026-07-12","","Orders are visible only to their owner","Another customer cannot read someone else's order",""
+"","43","Two bags have a total of 99800 paise","","2026-07-12","broken","2026-07-12","","Cart totals are correct","Two bags have a total of 99800 paise",""
