@@ -65,11 +65,11 @@ jobs:
 
       - name: Checkout gh-pages Branch
         if: always()
-        continue-on-error: true
         uses: actions/checkout@v4
         with:
           ref: gh-pages
           path: gh-pages
+        continue-on-error: true
 
 
       - name: Generate Allure Report
@@ -89,3 +89,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: allure-history
+          force_orphan: true
