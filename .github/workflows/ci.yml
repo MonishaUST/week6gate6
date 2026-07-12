@@ -49,9 +49,18 @@ jobs:
         run: ./gradlew clean testClasses
 
 
+      - name: Install Chrome Browser
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser chromium-chromedriver
+
+
       - name: Run Cucumber Smoke Tests
         run: ./gradlew cucumberSmoke --no-configuration-cache
         continue-on-error: true
+        env:
+          CI: "true"
+          HEADLESS: "true"
 
 
       - name: Copy Allure Environment

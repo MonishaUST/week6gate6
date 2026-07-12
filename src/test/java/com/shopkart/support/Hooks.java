@@ -2,38 +2,12 @@ package com.shopkart.support;
 
 import com.codeborne.selenide.Configuration;
 import com.codeborne.selenide.Selenide;
-import com.shopkart.data.db.FlywaySupport;
 import io.cucumber.java.After;
 import io.cucumber.java.Before;
 
 public class Hooks {
 
-    private static boolean databaseMigrated = false;
-
-    @Before(order = 0)
-    public void prepareCiDatabase() {
-
-        String environment =
-                System.getProperty(
-                        "test.env",
-                        "local"
-                );
-
-        if (
-                "ci".equalsIgnoreCase(environment)
-                        && !databaseMigrated
-        ) {
-
-            FlywaySupport.migrate();
-
-            databaseMigrated = true;
-        }
-    }
-
-    @Before(
-            value = "@ui or @e2e",
-            order = 1
-    )
+    @Before("@ui or @e2e")
     public void configureUi() {
 
         Configuration.baseUrl =
@@ -48,19 +22,61 @@ public class Hooks {
                         "chrome"
                 );
 
+        String ci =
+                System.getenv("CI");
+
+        boolean runningInCi =
+                ci != null
+                        && ci.equalsIgnoreCase("true");
+
         Configuration.headless =
                 Boolean.parseBoolean(
                         System.getProperty(
                                 "headless",
-                                "false"
+                                String.valueOf(runningInCi)
                         )
                 );
 
-        Configuration.timeout =
-                10_000;
+        Configuration.timeout = 10_000;
 
         Configuration.browserSize =
                 "1440x900";
+
+        if (runningInCi) {
+
+            Configuration.browserCapabilities
+                    .setCapability(
+                            "goog:chromeOptions",
+                            chromeOptions()
+                    );
+        }
+
+        System.out.println(
+                "Running in CI: "
+                        + runningInCi
+        );
+
+        System.out.println(
+                "Headless mode: "
+                        + Configuration.headless
+        );
+    }
+
+    private org.openqa.selenium.chrome.ChromeOptions
+    chromeOptions() {
+
+        org.openqa.selenium.chrome.ChromeOptions options =
+                new org.openqa.selenium.chrome.ChromeOptions();
+
+        options.addArguments(
+                "--headless=new",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--window-size=1440,900"
+        );
+
+        return options;
     }
 
     @After("@ui or @e2e")
